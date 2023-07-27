@@ -29,6 +29,16 @@ export const enum DataType {
 }
 
 /**
+ * DataType in WGSL.
+ */
+export enum WGSLDataType {
+  undefined = 0,
+  f32 = 1,
+  i32 = 6,
+  u32 = 12,
+}
+
+/**
  * Map string tensor data to enum value
  */
 export const tensorDataTypeStringToEnum = (type: string): DataType => {
