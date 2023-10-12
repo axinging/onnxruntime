@@ -221,7 +221,9 @@ InlinedVector<std::unique_ptr<GraphTransformer>> GenerateTransformers(
         excluded_initializers.insert(p.first);
       }
       const InlinedHashSet<std::string_view> no_limit_empty_ep_list = {};
+      #ifndef DEBUG_NODE_INPUTS_OUTPUTS
       transformers.emplace_back(std::make_unique<ConstantSharing>(no_limit_empty_ep_list, excluded_initializers));
+      #endif
 
       transformers.emplace_back(std::make_unique<CommonSubexpressionElimination>());
       transformers.emplace_back(std::make_unique<ConstantFolding>(cpu_execution_provider, !disable_quant_qdq));

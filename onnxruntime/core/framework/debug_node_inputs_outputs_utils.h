@@ -158,6 +158,8 @@ void DumpNodeOutputs(
     const Node& node,
     const SessionState& session_state);
 
+void DumpCpuTensorFromFrame(const Tensor& tensor, const SessionState& session_state, const std::string& name);
+
 }  // namespace utils
 }  // namespace onnxruntime
 

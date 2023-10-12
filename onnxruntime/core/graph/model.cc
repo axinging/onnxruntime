@@ -558,10 +558,15 @@ static Status SaveModel(Model& model, const T& file_path) {
              // Node.js
              require('fs').writeFileSync(file_path, bytes);
            } else {
+             if (window.onnxDump != 2) {
+                console.log("not dump");
+                return;
+             }
              // Browser
              const file = new File([bytes], file_path, {type: "application/octet-stream" });
-             const url = URL.createObjectURL(file);
-             window.open(url, '_blank');
+             // const url = URL.createObjectURL(file);
+             // window.open(url, '_blank');
+             window.onnxDumpOptmizedModelBlobUrl = URL.createObjectURL(file);
            }
          }),
          reinterpret_cast<int32_t>(buffer),

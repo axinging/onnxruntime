@@ -10,6 +10,9 @@ export * from 'onnxruntime-common';
 import * as ort from 'onnxruntime-common';
 export default ort;
 
+export * from './onnxjs/model';
+export * as JsTensor from './onnxjs/tensor';
+export * as OnnxProto from './onnxjs/ort-schema/protobuf/onnx';
 import {registerBackend, env} from 'onnxruntime-common';
 import {version} from './version';
 
