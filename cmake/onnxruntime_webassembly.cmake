@@ -265,6 +265,7 @@ else()
   if (onnxruntime_USE_WEBNN)
    set_property(TARGET onnxruntime_webassembly APPEND_STRING PROPERTY LINK_FLAGS " --bind -sWASM_BIGINT")
   endif()
+  set_property(TARGET onnxruntime_webassembly APPEND_STRING PROPERTY LINK_FLAGS " --bind -sWASM_BIGINT")
 
   # Set link flag to enable exceptions support, this will override default disabling exception throwing behavior when disable exceptions.
   target_link_options(onnxruntime_webassembly PRIVATE "SHELL:-s DISABLE_EXCEPTION_THROWING=0")

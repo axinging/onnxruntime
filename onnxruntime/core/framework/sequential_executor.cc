@@ -327,7 +327,7 @@ class KernelScope {
 #endif
 
 #ifdef DEBUG_NODE_INPUTS_OUTPUTS
-    utils::DumpNodeInputs(dump_context_, kernel_context_, kernel_.Node(), session_state_);
+    // utils::DumpNodeInputs(dump_context_, kernel_context_, kernel_.Node(), session_state_);
 #endif
 
 #ifdef ENABLE_NVTX_PROFILE
@@ -401,6 +401,7 @@ class KernelScope {
 #endif
 
 #ifdef DEBUG_NODE_INPUTS_OUTPUTS
+    utils::DumpNodeInputs(dump_context_, kernel_context_, kernel_.Node(), session_state_);
     utils::DumpNodeOutputs(dump_context_, kernel_context_, kernel_.Node(), session_state_);
 #endif
   }  //~KernelScope
@@ -607,7 +608,23 @@ onnxruntime::Status ExecuteThePlan(const SessionState& session_state, gsl::span<
       ORT_RETURN_IF_ERROR(session_state.UpdateMemoryPatternGroupCache(feeds, std::move(mem_patterns)));
     }
   }
+  {
 
+    // auto frame = ctx.GetExecutionFrame();
+    //auto ort_value_idx_map = session_state.GetOrtValueNameIdxMap()
+    auto num_tensor = static_cast<size_t>(session_state.GetOrtValueNameIdxMap().MaxIdx()) + 1;
+
+    std::cout<<"ort_value_idx_map:   "<<num_tensor<< "\n";
+    for (size_t i =0 ; i < num_tensor; i ++) {
+        std::string name;// = '';
+        auto status = session_state.GetOrtValueNameIdxMap().GetName(i, name);
+        std::cout<<status<<", name: "<<name<< ", "<< i <<"\n";
+
+        OrtValue* p_ml_value = ctx.GetExecutionFrame().GetMutableNodeInputOrOutputMLValue(i);
+        Tensor* tensor = p_ml_value ? p_ml_value->GetMutable<Tensor>() : nullptr;
+        utils::DumpCpuTensorFromFrame(*tensor, session_state, name);
+    }
+  }
   return Status::OK();
 }
 

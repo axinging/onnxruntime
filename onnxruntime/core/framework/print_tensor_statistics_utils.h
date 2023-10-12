@@ -139,7 +139,7 @@ void PrintCpuTensorStats(const Tensor& tensor) {
   }
 
   const T* data = tensor.Data<T>();
-  PrintTensorStats<T>(data, num_items);
+  PrintTensorStats<T>(data, (size_t)num_items);
   std::cout << std::endl;
 }
 

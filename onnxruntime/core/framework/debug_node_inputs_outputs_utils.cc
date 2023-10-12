@@ -2,7 +2,9 @@
 // Licensed under the MIT License.
 
 #ifdef DEBUG_NODE_INPUTS_OUTPUTS
-
+//#include <iostream>
+//#include <string>
+#include <emscripten/emscripten.h>
 #include "core/framework/debug_node_inputs_outputs_utils.h"
 #include "core/framework/print_tensor_utils.h"
 #include "core/framework/print_tensor_statistics_utils.h"
@@ -59,7 +61,73 @@ bool FilterNode(const NodeDumpOptions& dump_options, const Node& node) {
 }
 
 template <typename T>
-void DumpTensorToStdOut(const Tensor& tensor, const NodeDumpOptions& dump_options) {
+void DumpTensorToStdOut(const Tensor& tensor, const std::string tensor_name, const NodeDumpOptions& dump_options) {
+  auto data = tensor.Data<T>();
+  const auto& shape = tensor.Shape();
+  auto num_items = shape.Size();
+  auto numDimensions = shape.NumDimensions();
+  int64_t shape_array[numDimensions];
+  for (size_t i =0 ; i < numDimensions; i ++) {
+    shape_array[i] = shape[i];
+  }
+  auto tensor_type = DataTypeImpl::ToString(tensor.DataType());
+  std::cout<<"tensor data type: "<<DataTypeImpl::ToString(tensor.DataType())<<"\n";
+
+  EM_ASM(
+      {
+        DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
+          // split 64-bit number into two 32-bit parts
+          const left =  this.getUint32(byteOffset, littleEndian);
+          const right = this.getUint32(byteOffset+4, littleEndian);
+          const combined = littleEndian? left + 2**32*right : 2**32*left + right;
+
+          if (!Number.isSafeInteger(combined))
+            console.warn(combined, 'exceeds MAX_SAFE_INTEGER. Precision may be lost');
+          return combined;
+        };
+
+        BigInt.prototype.toJSON = function () {
+          return Number(this.toString(16));
+        };
+        function SaveObjectsToFile(json_object, name) {
+          // const name = json_object['name'];
+          const object = json_object;
+          const file_name = `${name}.json`;
+          const a = document.createElement('a');
+          const file = new Blob([JSON.stringify(object)], {
+            type: 'application/json'
+          });
+          a.href = URL.createObjectURL(file);
+          a.download = file_name;
+          a.click();
+        }
+
+        const name = UTF8ToString($0);
+
+        const buffer = $1;
+        const buffer_size = $2;
+        console.log(buffer_size);
+        const bytes = new Uint8Array(buffer_size);
+        bytes.set(HEAPU8.subarray(buffer, buffer + buffer_size));
+
+        const tensor_type = UTF8ToString($3);;
+        const shape_ptr = $4;
+        const shape_size = $5 * 8;
+        console.log(shape_size);
+        const shape_bytes = new Uint8Array(shape_size);
+        shape_bytes.set(HEAPU8.subarray(shape_ptr, shape_ptr + shape_size));
+
+        const shape_int64 = new BigInt64Array(shape_bytes.buffer);
+        SaveObjectsToFile({'data': Array.from(new Float32Array(bytes.buffer)),
+                           'dims':Array.from(shape_int64),  'type': tensor_type}, name);
+      },
+      reinterpret_cast<int32_t>(tensor_name.c_str()),
+      reinterpret_cast<int32_t>(data),
+      static_cast<int32_t>(num_items*4),
+      reinterpret_cast<int32_t>(tensor_type),
+      shape_array,
+      numDimensions);
+
   onnxruntime::utils::PrintCpuTensor<T>(tensor, dump_options.snippet_threshold, dump_options.snippet_edge_items);
   if (dump_options.dump_flags & NodeDumpOptions::DumpFlags::StatisticsData) {
     onnxruntime::utils::PrintCpuTensorStats<T>(tensor);
@@ -298,11 +366,12 @@ void DumpCpuTensor(
     const Tensor& tensor, const TensorMetadata& tensor_metadata) {
   switch (dump_options.data_destination) {
     case NodeDumpOptions::DataDestination::StdOut: {
-      DispatchOnTensorType(tensor.DataType(), DumpTensorToStdOut, tensor, dump_options);
+      DispatchOnTensorType(tensor.DataType(), DumpTensorToStdOut, tensor, tensor_metadata.name, dump_options);
       break;
     }
     case NodeDumpOptions::DataDestination::TensorProtoFiles: {
       const Path tensor_file = dump_options.output_dir / Path::Parse(MakeTensorFileName(tensor_metadata.name, dump_options));
+      std::cout<<" tensor_file =" <<tensor_file.ToPathString() <<", tensor_metadata.name="<<tensor_metadata.name<<"\n";
       DumpTensorToFile(tensor, tensor_metadata.name, tensor_file);
       break;
     }
@@ -325,6 +394,7 @@ void DumpTensor(
     const SessionState& session_state) {
   // check tensor is on CPU before dumping it
   auto& tensor_location = tensor.Location();
+  std::cout<< __FUNCTION__<<":"<<__LINE__<<"\n";
   if (tensor_location.device.Type() == OrtDevice::CPU ||
       tensor_location.mem_type == OrtMemTypeCPUInput ||
       tensor_location.mem_type == OrtMemTypeCPUOutput) {
@@ -447,6 +517,17 @@ static void PrintIf(bool boolean_expression, const std::string& message) {
   }
 }
 
+void DumpCpuTensorFromFrame(const Tensor& tensor, const SessionState& session_state, const std::string& name) {
+          TensorMetadata tensor_metadata;
+          tensor_metadata.name = name + "_Dump";
+          tensor_metadata.step = 1;
+          tensor_metadata.consumer = "unknowConsumer";
+          utils::NodeDumpOptions opts{};
+          opts.dump_flags |= utils::NodeDumpOptions::DumpFlags::InputData;
+          opts.dump_flags |= utils::NodeDumpOptions::DumpFlags::OutputData;
+          DumpTensor(opts, tensor, tensor_metadata, session_state);
+}
+
 void DumpNodeInputs(
     const NodeDumpOptions& dump_options,
     const NodeDumpContext& dump_context,
@@ -491,12 +572,12 @@ void DumpNodeInputs(
             const bool is_shape_set = (dump_options.dump_flags & NodeDumpOptions::DumpFlags::Shape) != 0;
             PrintIf(is_shape_set, MakeString(" Shape: ", shape, "\n"));
 
-            if ((dump_options.dump_flags & NodeDumpOptions::DumpFlags::InputData) != 0) {
+            //if ((dump_options.dump_flags & NodeDumpOptions::DumpFlags::InputData) != 0) {
               tensor_metadata.name = input_defs[i]->Name();
               tensor_metadata.step = dump_context.iteration;
               tensor_metadata.consumer = node.Name() + ":" + std::to_string(i);
               DumpTensor(dump_options, *tensor, tensor_metadata, session_state);
-            }
+            //}
           } else {
             std::cout << " is empty optional tensor.\n";
           }
@@ -562,12 +643,14 @@ void DumpNodeOutputs(
             const bool is_shape_set = (dump_options.dump_flags & NodeDumpOptions::DumpFlags::Shape) != 0;
             PrintIf(is_shape_set, MakeString(" Shape: ", shape, "\n"));
 
-            if ((dump_options.dump_flags & NodeDumpOptions::DumpFlags::OutputData) != 0) {
+            //if ((dump_options.dump_flags & NodeDumpOptions::DumpFlags::OutputData) != 0) {
               tensor_metadata.name = output_defs[i]->Name();
               tensor_metadata.step = dump_context.iteration;
               tensor_metadata.producer = node.Name() + ":" + std::to_string(i);
+              std::cout<< __FUNCTION__<<":"<<__LINE__<<"\n";
               DumpTensor(dump_options, *tensor, tensor_metadata, session_state);
-            }
+              std::cout<< __FUNCTION__<<":"<<__LINE__<<"\n";
+            //}
           } else {
             std::cout << " is empty optional tensor.\n";
           }
