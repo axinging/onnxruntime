@@ -7,6 +7,9 @@
 // So we import code inside the if-clause to allow bundler remove the code safely.
 
 export * from 'onnxruntime-common';
+export * from './onnxjs/model';
+export * as JsTensor from './onnxjs/tensor';
+export * as OnnxProto from './onnxjs/ort-schema/protobuf/onnx';
 import {registerBackend, env} from 'onnxruntime-common';
 import {version} from './version';
 

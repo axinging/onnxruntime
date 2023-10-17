@@ -118,15 +118,19 @@ class Node implements Graph.Node {
       this.attributes = new Attribute(ProtoUtil.tensorAttributesFromORTFormat(_nodeProto));
     }
 
+    this.inputNames = [];
     this.inputs = [];
     this.outputs = [];
+    this.outputNames = [];
     this.executeNode = true;
   }
 
   name: string;
   opType: string;
   inputs: number[];
+  inputNames: string[];
   outputs: number[];
+  outputNames: string[];
   attributes: Attribute;
   executeNode: boolean;
 }
@@ -297,6 +301,7 @@ class GraphImpl implements Graph, Graph.Transformer {
           dataIndices.set(output, dataIndex);
         }
         node.outputs.push(dataIndex);
+        node.outputNames.push(output);
 
         if (this._allData[dataIndex]._from !== undefined) {
           throw new Error(`multiple nodes output to one data value: ${dataIndex}`);
@@ -340,6 +345,7 @@ class GraphImpl implements Graph, Graph.Transformer {
           throw new Error(`unrecognized input '${input}' for node: ${nodeProto.name}`);
         }
         node.inputs.push(dataIndex);
+        node.inputNames.push(input);
 
         this._allData[dataIndex]._to.push(i);
       }
