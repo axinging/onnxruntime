@@ -45,6 +45,7 @@ export interface AttentionParameters {
   headSize: number;
   vHeadSize: number;
   numHeads: number;
+  kvNumHeads: number
   isUnidirectional: boolean;
   pastPresentShareBuffer: boolean;
   maskFilterValue: number;
@@ -55,8 +56,9 @@ export interface AttentionParameters {
   qkvFormat: AttentionQkvFormat;
 }
 
-export interface AttentionAttrs {
+export interface GroupQueryAttentionAttrs {
   numHeads: number;
+  kvNumHeads: number
   isUnidirectional: number;
   maskFilterValue: number;
   scale: number;
@@ -64,172 +66,6 @@ export interface AttentionAttrs {
   qkvHiddenSizes: number[];
   pastPresentShareBuffer: boolean;
 }
-
-const validateAttentionInputs = (inputs: readonly TensorView[], attributes: AttentionAttrs): AttentionParameters => {
-  // Abbreviation and Meanings:
-  //   B:    batch_size
-  //   S:    sequence_length (input sequence length of query)
-  //   P:    past_sequence_length (past sequence length of key or value)
-  //   L:    kv_sequence_length (input sequence length of key or value)
-  //   M:    max_sequence_length
-  //   T:    total_sequence_length = past_sequence_length + kv_sequence_length
-  //   N:    num_heads
-  //   H:    head size for Q and K, aka q_head_size or k_head_size or qk_head_size
-  //   H_v:  v_head_size
-  //   D_i:  input hidden size
-  //   D:    hidden size for Q and K (D = N * H), aka q_hidden_size or k_hidden_size or qk_hidden_size
-  //   D_v:  v_hidden_size = num_heads * v_head_size
-
-  // When past state is used, Q, K and V should have same hidden size (unless we split it into past_key and past_value).
-
-  // Input shapes:
-  //   input        (Q/K/V)    : (B, S, D_i)
-  //   weights      (Q/K/V)    : (D_i, D + D + D_v)
-  //   bias         (Q/K/V)    : (D + D + D_v)
-  //   mask_index              : see below
-  //   past         (K/V)      : (2, B, N, P, H) or NULL
-  //   relative_position_bias            : (B, N, S, T) or NULL
-
-  // For mask_index, the following shapes are supported:
-  //     NULL, (B, 1), (1, 1)
-  //     (B), (2 * B), (3 * B + 2)
-  //     (B, T)
-  //     (B, S, T)
-  //     (B, 1, M, M)
-  //
-  // When a model is pruned (like some attention heads are removed in Q/K/V), input_hidden_size could be larger
-  // than hidden dimension of Q, K and V.
-
-  const input = inputs[0];
-  const weights = inputs[1];
-  const bias = inputs[2];
-  const maskIndex = inputs[3];
-  const past = inputs[4];
-  const relativePositionBias = inputs[5];
-
-  if (past && relativePositionBias) {
-    throw new Error('Attention cannot have both past and relative_position_bias');
-  }
-
-  if (input.dims.length !== 3) {
-    throw new Error('Input "input" must have 3 dimensions');
-  }
-
-  const batchSize = input.dims[0];
-  const sequenceLength = input.dims[1];
-  const inputHiddenSize = input.dims[2];
-
-  if (bias.dims.length !== 1) {
-    throw new Error('Input "bias" is expected to have 1 dimensions');
-  }
-
-  if (weights.dims.length !== 2) {
-    throw new Error('Input "weights" is expected to have 2 dimensions');
-  }
-
-  if (weights.dims[0] !== inputHiddenSize) {
-    throw new Error('Input 1 dimension 0 should have same length as dimension 2 of input 0');
-  }
-
-  if (bias.dims[0] !== weights.dims[1]) {
-    throw new Error('Input "bias" dimension 0 should have same length as dimension 1 of input "weights"');
-  }
-
-  let qHiddenSize = bias.dims[0] / 3;
-  let kHiddenSize = qHiddenSize;
-  let vHiddenSize = kHiddenSize;
-  if (attributes.qkvHiddenSizes.length > 0) {
-    if (attributes.qkvHiddenSizes.length !== 3) {
-      throw new Error('qkv_hidden_sizes attribute should have 3 elements');
-    }
-    for (const sz of attributes.qkvHiddenSizes) {
-      if (sz % attributes.numHeads !== 0) {
-        throw new Error('qkv_hidden_sizes should be divisible by num_heads');
-      }
-    }
-
-    qHiddenSize = attributes.qkvHiddenSizes[0];
-    kHiddenSize = attributes.qkvHiddenSizes[1];
-    vHiddenSize = attributes.qkvHiddenSizes[2];
-  }
-
-  const kvSequenceLength = sequenceLength;
-
-  if (qHiddenSize !== kHiddenSize) {
-    throw new Error('qkv_hidden_sizes first element should be same as the second');
-  }
-
-  if (bias.dims[0] !== qHiddenSize + kHiddenSize + vHiddenSize) {
-    throw new Error('Input "bias" dimension 0 should have same length as sum of Q/K/V hidden sizes');
-  }
-
-  let pastSequenceLength = 0;
-  if (past) {
-    if (kHiddenSize !== vHiddenSize) {
-      throw new Error('Input "past" expect k_hidden_size == v_hidden_size');
-    }
-    if (past.dims.length !== 5) {
-      throw new Error('Input "past" must have 5 dimensions');
-    }
-    if (past.dims[0] !== 2) {
-      throw new Error('Input "past" first dimension must be 2');
-    }
-    if (past.dims[1] !== batchSize) {
-      throw new Error('Input "past" second dimension must be batch_size');
-    }
-    if (past.dims[2] !== attributes.numHeads) {
-      throw new Error('Input "past" third dimension must be num_heads');
-    }
-    if (past.dims[4] !== kHiddenSize / attributes.numHeads) {
-      throw new Error('Input "past" fifth dimension must be k_hidden_size / num_heads');
-    }
-
-    if (!attributes.pastPresentShareBuffer) {
-      pastSequenceLength = past.dims[3];
-    }
-    // TODO: handle past_seq_len
-  }
-
-  const totalSequenceLength = kvSequenceLength + pastSequenceLength;
-  const maxSequenceLength = -1;
-
-  const maskType = AttentionMaskType.none;
-  if (maskIndex) {
-    // maskType = AttentionMaskType.MASK_UNKNOWN;
-    // TODO: handle mask
-    throw new Error('Mask not supported');
-  }
-
-  if (past) {
-    throw new Error('past is not supported');
-  }
-  if (relativePositionBias) {
-    throw new Error('relativePositionBias is not supported');
-  }
-
-  return {
-    batchSize,
-    sequenceLength,
-    pastSequenceLength,
-    kvSequenceLength,
-    totalSequenceLength,
-    maxSequenceLength,
-    inputHiddenSize,
-    hiddenSize: qHiddenSize,
-    vHiddenSize,
-    headSize: Math.floor(qHiddenSize / attributes.numHeads),
-    vHeadSize: Math.floor(vHiddenSize / attributes.numHeads),
-    numHeads: attributes.numHeads,
-    isUnidirectional: false,
-    pastPresentShareBuffer: false,
-    maskFilterValue: attributes.maskFilterValue,
-    maskType,
-    scale: attributes.scale,
-    broadcastResPosBias: false,
-    passPastInKv: false,
-    qkvFormat: AttentionQkvFormat.qkvBNSH,
-  };
-};
 
 export const computeInPlaceSoftmax = (context: ComputeContext, input: TensorView, n: number, d: number) => {
   const components = getMaxComponents(d);
@@ -321,17 +157,19 @@ export const computeInPlaceSoftmax = (context: ComputeContext, input: TensorView
 
 const computeAttentionProbs =
     (context: ComputeContext, q: TensorView, key: TensorView, _bias: TensorView|undefined,
-     parameters: AttentionParameters, attributes: AttentionAttrs) => {
+     parameters: AttentionParameters, attributes: GroupQueryAttentionAttrs) => {
       const probsShape = [
         parameters.batchSize, parameters.numHeads, parameters.sequenceLength,
         parameters.kvSequenceLength + parameters.pastSequenceLength
       ];
       // TODO: handle mask
+      //console.log(attributes);
 
-      const alpha = attributes.scale === 0 ? 1.0 / Math.sqrt(parameters.headSize) : attributes.scale;
+      // const alpha = attributes.scale === 0 ? 1.0 / Math.sqrt(parameters.headSize) : attributes.scale;
+      const alpha = 1.0 / Math.sqrt(parameters.headSize);
       const components = getMaxComponents(parameters.headSize);
       const vectorizedHeadSize = parameters.headSize / components;
-      console.log("xxx parameters.numHeads = " + parameters.numHeads  + ",headSize = " + parameters.headSize);
+      // console.log("xxx components = " + components + ",headSize = " + parameters.headSize);
       const TILE_SIZE = 12;
       const dispatch = {
         x: Math.ceil(parameters.totalSequenceLength / TILE_SIZE),
@@ -343,6 +181,8 @@ const computeAttentionProbs =
         {type: DataType.uint32, data: parameters.totalSequenceLength},
         {type: DataType.uint32, data: parameters.kvSequenceLength}, {type: q.dataType, data: alpha}
       ];
+      //console.log(JSON.stringify(programUniforms));
+      console.log("xxx score probsShape = " + probsShape);
 
       const inputs = [q, key];
 
@@ -370,8 +210,8 @@ const computeAttentionProbs =
     let headIdx = workgroup_id.z;
     let m = workgroup_id.y * TILE_SIZE;
     let n = workgroup_id.x * TILE_SIZE;
-    let lm = m + local_id.y;
-    let ln = n + local_id.x;
+    let lm = global_id.y;
+    let ln = global_id.x;
 
     let qOffset = uniforms.M * uniforms.K * headIdx + m * uniforms.K;
     let kOffset = uniforms.kv_sequence_length * uniforms.K * headIdx + n * uniforms.K;
@@ -435,6 +275,7 @@ const computeVxAttentionScore =
         {type: DataType.uint32, data: params.vHeadSize}, {type: DataType.uint32, data: params.numHeads},
         {type: DataType.uint32, data: params.vHiddenSize}
       ];
+      console.log("xxx score outputShape = " + outputShape);
 
       const getShaderSource = (shaderHelper: ShaderHelper) => {
         const probsHelper = inputVariable('probs', probs.dataType, probs.dims);
@@ -503,11 +344,13 @@ const computeVxAttentionScore =
 export const applyAttention =
     (context: ComputeContext, q: TensorView, k: TensorView, v: TensorView, _maskIndex: TensorView|undefined,
      _past: TensorView|undefined, _pastKey: TensorView|undefined, _pastValue: TensorView|undefined,
-     relativePositionBias: TensorView|undefined, parameters: AttentionParameters, attributes: AttentionAttrs) => {
+     relativePositionBias: TensorView|undefined, parameters: AttentionParameters, attributes: GroupQueryAttentionAttrs) => {
       const probs = computeAttentionProbs(context, q, k, relativePositionBias, parameters, attributes);
 
       computeVxAttentionScore(context, probs, v, parameters);
     };
+
+/*
 
 const prepare = (context: ComputeContext, parameters: AttentionParameters) => {
   const outputShape = [
@@ -624,11 +467,4 @@ const prepare = (context: ComputeContext, parameters: AttentionParameters) => {
       {inputs, outputs: [-1, -1, -1]});
 };
 
-export const attention = (context: ComputeContext, attributes: AttentionAttrs): void => {
-  const params = validateAttentionInputs(context.inputs, attributes);
-
-  const [q, k, v] = prepare(context, params);
-
-  return applyAttention(
-      context, q, k, v, context.inputs[4], undefined, undefined, undefined, context.inputs[5], params, attributes);
-};
+*/
