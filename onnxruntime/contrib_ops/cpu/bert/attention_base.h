@@ -35,7 +35,11 @@ class AttentionBase {
     int64_t num_heads = 0;
     ORT_ENFORCE(info.GetAttr("num_heads", &num_heads).IsOK() && num_heads > 0);
     num_heads_ = static_cast<int>(num_heads);
-    kv_num_heads_ = info.GetAttrOrDefault<float>("kv_num_heads", num_heads_);
+    // int64_t kv_num_heads = 0;
+    // kv_num_heads_ = info.GetAttrOrDefault<int64_t>("kv_num_heads", num_heads);
+    // ORT_ENFORCE(info.GetAttr("kv_num_heads", &kv_num_heads).IsOK() && kv_num_heads > 0);
+    kv_num_heads_ = static_cast<int>(info.GetAttrOrDefault<int64_t>("kv_num_heads", num_heads));
+    // kv_num_heads_ = static_cast<int>(kv_num_heads_);
 
     is_unidirectional_ = info.GetAttrOrDefault<int64_t>("unidirectional", 0) == 1;
     do_rotary_ = info.GetAttrOrDefault<int64_t>("do_rotary", 0) == 1;
