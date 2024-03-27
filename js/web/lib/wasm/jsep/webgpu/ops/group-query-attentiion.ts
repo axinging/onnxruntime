@@ -282,7 +282,7 @@ const maybeTransposeToBNSHAndAddBias =
     (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
      input: TensorView, bias?: TensorView, biasOffset?: number) => {
       // const newDims = [];
-      console.log("xxx  batchSize, sequenceLength, numHeads, headSize = " + [batchSize, sequenceLength, numHeads, headSize] + ", inout dim=" + input.dims);
+      console.log("xxx  batchSize, sequenceLength, numHeads, headSize = " + [batchSize, sequenceLength, numHeads, headSize] + ", input dim=" + input.dims);
       let reshapedInput = input;
       if (!bias) {
         if (input.dims.length === 3) {
@@ -337,18 +337,19 @@ values = values.transpose(1, 2) # (bs, n_local_heads, cache_len + seqlen, head_d
     (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
      input: TensorView, nReps: number) => {
       // const newDims = [];
-      console.log("xxx  batchSize, sequenceLength, numHeads, headSize = " + [batchSize, sequenceLength, numHeads, headSize] + ", inout dim=" + input.dims);
+      console.log("xxx  input dim=" + input.dims);
       let reshapedInput = input;
         if (input.dims.length === 3) {
 
           reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
         }
-        console.log("xxx  reshapedInput.dims = " + reshapedInput.dims);
+        console.log("xxx  reshapedInput.dims = " + reshapedInput.dims + ", [batchSize, sequenceLength, numHeads, headSize] = " + [batchSize, sequenceLength, numHeads, headSize]);
         const expanedInput = context.compute(
             createExpandProgramInfo([reshapedInput], [batchSize, sequenceLength, numHeads, nReps, headSize]),
             {inputs: [reshapedInput], outputs: [-1]})[0];
         console.log("xxx  expanedInput.dims = " + expanedInput.dims);
         const expanedInput2 = expanedInput.reshape([batchSize, sequenceLength, numHeads*nReps, headSize]);
+        console.log("xxx  reshape expanedInput2.dims = " + expanedInput2.dims);
         return context.compute(
             createTransposeProgramInfo(expanedInput2, weightTransposeAttribute.perm),
             {inputs: [expanedInput2], outputs: [-1]})[0];
@@ -380,18 +381,18 @@ export const groupQueryAttention = (context: ComputeContext, attributes: GroupQu
         context, Q, context.inputs[1], context.inputs[2], context.inputs[4], undefined, undefined, undefined,
         context.inputs[5], params, attributes);
   }
-  console.log("xxx  Q.dims = " + Q.dims);
+
   const nRep = Math.floor(attributes.numHeads / params.kvNumHeads);
   // const shapeT = [params.batchSize, params.kvNumHeads, params.kvSequenceLength*nRep, params.vHeadSize];
   const K = maybeTransposeToBNSHAndAddBias2(
       context, params.batchSize, params.kvNumHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[1],
       nRep);
-      console.log("xxx  K.dims = " + K.dims);
+
 
   const V = maybeTransposeToBNSHAndAddBias2(
       context, params.batchSize, params.kvNumHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[2],nRep);
-      console.log("xxx  V.dims = " + V.dims);
-
+  console.log("xxx Q.dims = " + Q.dims +" K.dims = " + K.dims + "  V.dims = " + V.dims);
+  console.log("xxx params = " + JSON.stringify(params));
   applyAttention(
       context, Q, K, V, context.inputs[4], undefined, context.inputs[6], context.inputs[7], context.inputs[5], params,
       attributes);

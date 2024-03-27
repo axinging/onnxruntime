@@ -335,7 +335,7 @@ export const multiHeadAttention = (context: ComputeContext, attributes: Attentio
   const V = maybeTransposeToBNSHAndAddBias(
       context, params.batchSize, params.numHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[2],
       context.inputs[3], 2 * params.hiddenSize);
-
+  console.log("xxx Q.dims = " + Q.dims +" K.dims = " + K.dims + "  V.dims = " + V.dims);
   applyAttention(
       context, Q, K, V, context.inputs[4], undefined, context.inputs[6], context.inputs[7], context.inputs[5], params,
       attributes);

@@ -1,6 +1,6 @@
 [
   {
-    "name": "GroupQueryAttention Basic, one head",
+    "name": "GroupQueryAttention Basic, one head., num_heads = 4, head_size = 4;",
     "operator": "GroupQueryAttention",
     "opset": { "domain": "com.microsoft", "version": 1 },
     "attributes": [{ "name": "num_heads", "data": 4, "type": "int" }, { "name": "kv_num_heads", "data": 2, "type": "int" }],

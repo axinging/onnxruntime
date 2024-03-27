@@ -163,13 +163,13 @@ const computeAttentionProbs =
         parameters.kvSequenceLength + parameters.pastSequenceLength
       ];
       // TODO: handle mask
-      console.log(attributes);
+      //console.log(attributes);
 
       // const alpha = attributes.scale === 0 ? 1.0 / Math.sqrt(parameters.headSize) : attributes.scale;
       const alpha = 1.0 / Math.sqrt(parameters.headSize);
       const components = getMaxComponents(parameters.headSize);
       const vectorizedHeadSize = parameters.headSize / components;
-      console.log("xxx components = " + components + ",headSize = " + parameters.headSize);
+      // console.log("xxx components = " + components + ",headSize = " + parameters.headSize);
       const TILE_SIZE = 12;
       const dispatch = {
         x: Math.ceil(parameters.totalSequenceLength / TILE_SIZE),
@@ -181,7 +181,8 @@ const computeAttentionProbs =
         {type: DataType.uint32, data: parameters.totalSequenceLength},
         {type: DataType.uint32, data: parameters.kvSequenceLength}, {type: q.dataType, data: alpha}
       ];
-      console.log(JSON.stringify(programUniforms));
+      //console.log(JSON.stringify(programUniforms));
+      console.log("xxx score probsShape = " + probsShape);
 
       const inputs = [q, key];
 
@@ -274,7 +275,7 @@ const computeVxAttentionScore =
         {type: DataType.uint32, data: params.vHeadSize}, {type: DataType.uint32, data: params.numHeads},
         {type: DataType.uint32, data: params.vHiddenSize}
       ];
-      console.log(JSON.stringify(programUniforms));
+      console.log("xxx score outputShape = " + outputShape);
 
       const getShaderSource = (shaderHelper: ShaderHelper) => {
         const probsHelper = inputVariable('probs', probs.dataType, probs.dims);
