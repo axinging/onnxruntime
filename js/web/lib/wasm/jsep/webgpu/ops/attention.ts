@@ -331,6 +331,7 @@ const computeAttentionProbs =
       const alpha = attributes.scale === 0 ? 1.0 / Math.sqrt(parameters.headSize) : attributes.scale;
       const components = getMaxComponents(parameters.headSize);
       const vectorizedHeadSize = parameters.headSize / components;
+      console.log("xxx components = " + components + ",headSize = " + parameters.headSize);
       const TILE_SIZE = 12;
       const dispatch = {
         x: Math.ceil(parameters.totalSequenceLength / TILE_SIZE),
