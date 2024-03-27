@@ -18,16 +18,10 @@ class GroupQueryAttention : public JsKernel, AttentionBase {
   explicit GroupQueryAttention(const OpKernelInfo& info) : JsKernel(info), AttentionBase(info, false) {
     JSEP_INIT_KERNEL_ATTRIBUTE(GroupQueryAttention, ({
                                  "numHeads" : $1,
-                                 "isUnidirectional" : $2,
-                                 "maskFilterValue" : $3,
-                                 "scale" : $4,
-                                 "doRotary" : $5,
+                                 "kv_num_heads" : $2,
                                }),
                                static_cast<int32_t>(num_heads_),
-                               static_cast<int32_t>(is_unidirectional_),
-                               static_cast<int32_t>(mask_filter_value_),
-                               static_cast<int32_t>(scale_),
-                               static_cast<int32_t>(do_rotary_));
+                               static_cast<int32_t>(kv_num_heads_));
   }
 };
 

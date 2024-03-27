@@ -1062,11 +1062,13 @@ ONNX_MS_OPERATOR_SET_SCHEMA(
         .Input(5,
                "seqlens_k",
                "1d Tensor of shape (batch_size). Indicates past sequence lengths for token generation case.",
-               "M")
+               "M",
+               OpSchema::Optional)
         .Input(6,
                "total_sequence_length",
                "Scalar tensor of total sequence length (past + new).",
-               "M")
+               "M",
+               OpSchema::Optional)
         .Input(7,
                "cos_cache",
                "2D tensor with shape (max_sequence_length, head_size / 2).",
@@ -1093,7 +1095,7 @@ ONNX_MS_OPERATOR_SET_SCHEMA(
                 "(k-v buffer), it is of length max_sequence_length... otherwise of length past_sequence_length +"
                 "kv_sequence_length.",
                 "T")
-        .TypeConstraint("T", {"tensor(float16)", "tensor(bfloat16)"}, "Constrain input and output to float tensors.")
+        .TypeConstraint("T", {"tensor(float)", "tensor(float16)", "tensor(bfloat16)"}, "Constrain input and output to float tensors.")
         .TypeConstraint("M", {"tensor(int32)"}, "Constrain mask to int tensor.")
         .TypeAndShapeInferenceFunction([](ONNX_NAMESPACE::InferenceContext& ctx) {
           GroupQueryAttentionTypeAndShapeInference(ctx, 3);

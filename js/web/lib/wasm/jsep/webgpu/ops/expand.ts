@@ -41,10 +41,11 @@ const calculateOutputShape = (inputShape: readonly number[], shape: readonly num
     (inputShape.length > shape.length) ? getAdjustedShape(inputShape, shape) : getAdjustedShape(shape, inputShape);
 
 
-const createExpandProgramInfo = (inputs: readonly TensorView[]): ProgramInfo => {
+export const createExpandProgramInfo = (inputs: readonly TensorView[], shape?: number[]): ProgramInfo => {
   const inputShape = inputs[0].dims;
-  const shape = Array.from(inputs[1].getBigInt64Array(), Number);
+  shape = shape ==null?Array.from(inputs[1].getBigInt64Array(), Number) : shape;
   const outputShape: number[] = calculateOutputShape(inputShape, shape);
+  console.log("xxx expand shape = " + outputShape);
   const dataType = inputs[0].dataType;
   const components = dataType === DataType.bool ? 4 : 1;
   const outputSize = Math.ceil(ShapeUtil.size(outputShape) / components);
