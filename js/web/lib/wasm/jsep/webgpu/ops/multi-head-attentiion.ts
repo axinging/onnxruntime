@@ -11,7 +11,7 @@ import {applyAttention, AttentionAttrs, AttentionMaskType, AttentionParameters, 
 import {inputVariable, outputVariable, ShaderHelper, UniformsArrayType} from './common';
 import {createTransposeProgramInfo, TransposeAttributes} from './transpose';
 
-const validateInputs = (inputs: readonly TensorView[], attributes: AttentionAttrs): AttentionParameters => {
+export const validateInputs = (inputs: readonly TensorView[], attributes: AttentionAttrs): AttentionParameters => {
   const query = inputs[0];
   const key = inputs[1];
   const value = inputs[2];
@@ -276,7 +276,7 @@ const addBiasTranspose =
           {inputs: [qkv, bias], outputs: [-1]})[0];
     };
 
-const maybeTransposeToBNSHAndAddBias =
+export const maybeTransposeToBNSHAndAddBias =
     (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
      input: TensorView, bias?: TensorView, biasOffset?: number) => {
       // const newDims = [];

@@ -45,6 +45,7 @@ export interface AttentionParameters {
   headSize: number;
   vHeadSize: number;
   numHeads: number;
+  kvNumHeads?: number
   isUnidirectional: boolean;
   pastPresentShareBuffer: boolean;
   maskFilterValue: number;
@@ -57,6 +58,7 @@ export interface AttentionParameters {
 
 export interface AttentionAttrs {
   numHeads: number;
+  kvNumHeads?: number
   isUnidirectional: number;
   maskFilterValue: number;
   scale: number;
@@ -319,19 +321,19 @@ export const computeInPlaceSoftmax = (context: ComputeContext, input: TensorView
       {inputs: [input], outputs: []});
 };
 
-const computeAttentionProbs =
+export const computeAttentionProbs =
     (context: ComputeContext, q: TensorView, key: TensorView, _bias: TensorView|undefined,
-     parameters: AttentionParameters, attributes: AttentionAttrs) => {
+     parameters: AttentionParameters, scale: number) => {
       const probsShape = [
         parameters.batchSize, parameters.numHeads, parameters.sequenceLength,
         parameters.kvSequenceLength + parameters.pastSequenceLength
       ];
       // TODO: handle mask
 
-      const alpha = attributes.scale === 0 ? 1.0 / Math.sqrt(parameters.headSize) : attributes.scale;
+      const alpha = scale === 0 ? 1.0 / Math.sqrt(parameters.headSize) : scale;
       const components = getMaxComponents(parameters.headSize);
       const vectorizedHeadSize = parameters.headSize / components;
-      console.log("xxx parameters.numHeads = " + parameters.numHeads  + ",headSize = " + parameters.headSize);
+      console.log('xxx parameters.numHeads = ' + parameters.numHeads + ',headSize = ' + parameters.headSize);
       const TILE_SIZE = 12;
       const dispatch = {
         x: Math.ceil(parameters.totalSequenceLength / TILE_SIZE),
@@ -421,7 +423,7 @@ const computeAttentionProbs =
       return probs;
     };
 
-const computeVxAttentionScore =
+export const computeVxAttentionScore =
     (context: ComputeContext, probs: TensorView, v: TensorView, params: AttentionParameters) => {
       const outputShape = [params.batchSize, params.sequenceLength, params.vHiddenSize];
       const TILE_SIZE = 12;
@@ -504,7 +506,7 @@ export const applyAttention =
     (context: ComputeContext, q: TensorView, k: TensorView, v: TensorView, _maskIndex: TensorView|undefined,
      _past: TensorView|undefined, _pastKey: TensorView|undefined, _pastValue: TensorView|undefined,
      relativePositionBias: TensorView|undefined, parameters: AttentionParameters, attributes: AttentionAttrs) => {
-      const probs = computeAttentionProbs(context, q, k, relativePositionBias, parameters, attributes);
+      const probs = computeAttentionProbs(context, q, k, relativePositionBias, parameters, attributes.scale);
 
       computeVxAttentionScore(context, probs, v, parameters);
     };
