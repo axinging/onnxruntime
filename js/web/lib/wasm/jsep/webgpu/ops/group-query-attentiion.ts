@@ -7,10 +7,10 @@ import {ShapeUtil} from '../../util';
 import {createAttributeWithCacheKey} from '../attribute-with-cache-key';
 import {ComputeContext, GpuDataType, ProgramUniform} from '../types';
 
-import {applyAttention, GroupQueryAttentionAttrs, AttentionMaskType, AttentionParameters, AttentionQkvFormat} from './group_query_attention_util';
 import {inputVariable, outputVariable, ShaderHelper, UniformsArrayType} from './common';
-import {createTransposeProgramInfo, TransposeAttributes} from './transpose';
 import {createExpandProgramInfo} from './expand';
+import {applyAttention, AttentionMaskType, AttentionParameters, AttentionQkvFormat, GroupQueryAttentionAttrs} from './group_query_attention_util';
+import {createTransposeProgramInfo, TransposeAttributes} from './transpose';
 
 const validateInputs = (inputs: readonly TensorView[], attributes: GroupQueryAttentionAttrs): AttentionParameters => {
   const query = inputs[0];
@@ -75,7 +75,7 @@ const validateInputs = (inputs: readonly TensorView[], attributes: GroupQueryAtt
       throw new Error('Input "past_key" is expected to have 4 dimensions');
     }
     if (pastValue.dims.length !== 4) {
-        throw new Error('Input "past_value" is expected to have 4 dimensions');
+      throw new Error('Input "past_value" is expected to have 4 dimensions');
     }
     pastSequenceLength = pastKey.dims[2];
     maxSequenceLength = pastKey.dims[2];
@@ -89,10 +89,10 @@ const validateInputs = (inputs: readonly TensorView[], attributes: GroupQueryAtt
       throw new Error('Input "query" is expected to have 3 dimensions when key is given');
     }
     if (key.dims.length < 3 || key.dims.length > 5) {
-        console.warn('Input "key" is expected to have 3, 4, or 5 dimensions');
+      console.warn('Input "key" is expected to have 3, 4, or 5 dimensions');
     }
     if (query.dims[0] !== key.dims[0]) {
-        console.warn('Input "query" and "key" shall have same dim 0 (batch size)');
+      console.warn('Input "query" and "key" shall have same dim 0 (batch size)');
     }
 
     if (key.dims.length === 3) {
@@ -219,7 +219,7 @@ const validateInputs = (inputs: readonly TensorView[], attributes: GroupQueryAtt
     headSize,
     vHeadSize: Math.floor(vHiddenSize / kvNumHeads),  //???
     numHeads: attributes.numHeads,
-    kvNumHeads: kvNumHeads, //attributes.kvNumHeads,
+    kvNumHeads: kvNumHeads,  // attributes.kvNumHeads,
     isUnidirectional: false,
     pastPresentShareBuffer: false,
     maskFilterValue: attributes.maskFilterValue,
@@ -282,11 +282,12 @@ const maybeTransposeToBNSHAndAddBias =
     (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
      input: TensorView, bias?: TensorView, biasOffset?: number) => {
       // const newDims = [];
-      console.log("xxx  batchSize, sequenceLength, numHeads, headSize = " + [batchSize, sequenceLength, numHeads, headSize] + ", input dim=" + input.dims);
+      console.log(
+          'xxx  batchSize, sequenceLength, numHeads, headSize = ' + [batchSize, sequenceLength, numHeads, headSize] +
+          ', input dim=' + input.dims);
       let reshapedInput = input;
       if (!bias) {
         if (input.dims.length === 3) {
-
           reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
         }
 
@@ -307,53 +308,27 @@ const maybeTransposeToBNSHAndAddBias =
       }
     };
 
-   /*
-
-        .expand(bs, slen, n_kv_heads, n_rep, head_dim)
-        .reshape(bs, slen, n_kv_heads * n_rep, head_dim)
-
-   model_parallel_size = 1
-self = 0
-x =0
-args = 0
-self.n_local_heads = args.n_heads // model_parallel_size
-self.n_local_kv_heads = self.n_kv_heads // model_parallel_size
-self.n_rep = self.n_local_heads // self.n_local_kv_heads
-bsz, seqlen, _ = x.shape
-xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
-xq = xq.view(bsz, seqlen, self.n_local_heads, self.head_dim) # reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
-xq = xq.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
-
-keys = xk = xk.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
-keys = repeat_kv(keys, self.n_rep)  # (bs, cache_len + seqlen, n_local_heads, head_dim)
-keys = keys.transpose(1, 2) # (bs, n_local_heads, cache_len + seqlen, head_dim)
-
-values = xv = xv.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
-values = repeat_kv(values, self.n_rep)  # (bs, cache_len + seqlen, n_local_heads, head_dim)
-values = values.transpose(1, 2) # (bs, n_local_heads, cache_len + seqlen, head_dim)
-   */
-
-    const maybeTransposeToBNSHAndAddBias2 =
+const maybeTransposeToBNSHAndAddBias2 =
     (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
      input: TensorView, nReps: number) => {
       // const newDims = [];
-      console.log("xxx  input dim=" + input.dims);
+      console.log('xxx  input dim=' + input.dims);
       let reshapedInput = input;
-        if (input.dims.length === 3) {
-
-          reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
-        }
-        console.log("xxx  reshapedInput.dims = " + reshapedInput.dims + ", [batchSize, sequenceLength, numHeads, headSize] = " + [batchSize, sequenceLength, numHeads, headSize]);
-        const expanedInput = context.compute(
-            createExpandProgramInfo([reshapedInput], [batchSize, sequenceLength, numHeads, nReps, headSize]),
-            {inputs: [reshapedInput], outputs: [-1]})[0];
-        console.log("xxx  expanedInput.dims = " + expanedInput.dims);
-        const expanedInput2 = expanedInput.reshape([batchSize, sequenceLength, numHeads*nReps, headSize]);
-        console.log("xxx  reshape expanedInput2.dims = " + expanedInput2.dims);
-        return context.compute(
-            createTransposeProgramInfo(expanedInput2, weightTransposeAttribute.perm),
-            {inputs: [expanedInput2], outputs: [-1]})[0];
-
+      if (input.dims.length === 3) {
+        reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
+      }
+      console.log(
+          'xxx  reshapedInput.dims = ' + reshapedInput.dims +
+          ', [batchSize, sequenceLength, numHeads, headSize] = ' + [batchSize, sequenceLength, numHeads, headSize]);
+      const expanedInput = context.compute(
+          createExpandProgramInfo([reshapedInput], [batchSize, sequenceLength, numHeads, nReps, headSize]),
+          {inputs: [reshapedInput], outputs: [-1]})[0];
+      console.log('xxx  expanedInput.dims = ' + expanedInput.dims);
+      const expanedInput2 = expanedInput.reshape([batchSize, sequenceLength, numHeads * nReps, headSize]);
+      console.log('xxx  reshape expanedInput2.dims = ' + expanedInput2.dims);
+      return context.compute(
+          createTransposeProgramInfo(expanedInput2, weightTransposeAttribute.perm),
+          {inputs: [expanedInput2], outputs: [-1]})[0];
     };
 
 export const groupQueryAttention = (context: ComputeContext, attributes: GroupQueryAttentionAttrs): void => {
@@ -374,7 +349,7 @@ export const groupQueryAttention = (context: ComputeContext, attributes: GroupQu
   const Q = maybeTransposeToBNSHAndAddBias(
       context, params.batchSize, params.numHeads, params.sequenceLength, params.headSize, context.inputs[0],
       context.inputs[3], 0);
-  console.log("xxx " + kvBNSH);
+  console.log('xxx ' + kvBNSH);
 
   if (kvBNSH) {
     return applyAttention(
@@ -383,16 +358,13 @@ export const groupQueryAttention = (context: ComputeContext, attributes: GroupQu
   }
 
   const nRep = Math.floor(attributes.numHeads / params.kvNumHeads);
-  // const shapeT = [params.batchSize, params.kvNumHeads, params.kvSequenceLength*nRep, params.vHeadSize];
   const K = maybeTransposeToBNSHAndAddBias2(
-      context, params.batchSize, params.kvNumHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[1],
-      nRep);
-
+      context, params.batchSize, params.kvNumHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[1], nRep);
 
   const V = maybeTransposeToBNSHAndAddBias2(
-      context, params.batchSize, params.kvNumHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[2],nRep);
-  console.log("xxx Q.dims = " + Q.dims +" K.dims = " + K.dims + "  V.dims = " + V.dims);
-  console.log("xxx params = " + JSON.stringify(params));
+      context, params.batchSize, params.kvNumHeads, params.kvSequenceLength, params.vHeadSize, context.inputs[2], nRep);
+  console.log('xxx Q.dims = ' + Q.dims + ' K.dims = ' + K.dims + '  V.dims = ' + V.dims);
+  console.log('xxx params = ' + JSON.stringify(params));
   applyAttention(
       context, Q, K, V, context.inputs[4], undefined, context.inputs[6], context.inputs[7], context.inputs[5], params,
       attributes);
