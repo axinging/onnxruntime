@@ -18,7 +18,7 @@ class GroupQueryAttention : public JsKernel, AttentionBase {
   explicit GroupQueryAttention(const OpKernelInfo& info) : JsKernel(info), AttentionBase(info, false) {
     JSEP_INIT_KERNEL_ATTRIBUTE(GroupQueryAttention, ({
                                  "numHeads" : $1,
-                                 "kv_num_heads" : $2,
+                                 "kvNumHeads" : $2,
                                }),
                                static_cast<int32_t>(num_heads_),
                                static_cast<int32_t>(kv_num_heads_));

@@ -47,10 +47,10 @@ const maybeTransposeToBNSHAndAddBias2 =
     };
 
 export const groupQueryAttention = (context: ComputeContext, attributes: AttentionAttrs): void => {
+  console.log("xxx attributes = " + JSON.stringify(attributes));
   const params = validateInputs(context.inputs, attributes);
-  params.kvNumHeads = 2;
-  params.vHeadSize = Math.floor(params.vHiddenSize / params.kvNumHeads)
-
+  params.kvNumHeads = attributes.kvNumHeads;
+  params.vHeadSize = Math.floor(params.vHiddenSize / params.kvNumHeads!!);
 
   if (context.inputs[0].dims.length === 5) {
     throw new Error('Packed QKV is not implemented');
@@ -67,7 +67,6 @@ export const groupQueryAttention = (context: ComputeContext, attributes: Attenti
   const Q = maybeTransposeToBNSHAndAddBias(
       context, params.batchSize, params.numHeads, params.sequenceLength, params.headSize, context.inputs[0],
       context.inputs[3], 0);
-  console.log('xxx ' + kvBNSH);
 
   if (kvBNSH) {
     return applyAttention(
