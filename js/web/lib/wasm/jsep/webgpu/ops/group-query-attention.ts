@@ -250,13 +250,17 @@ const maybeExpandAndTransposeToBNSH =
       if (input.dims.length === 3) {
         reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
       }
-      let expanedInput = context.compute(
-          createExpandProgramInfo([reshapedInput], [batchSize, sequenceLength, numHeads, nReps, headSize]),
-          {inputs: [reshapedInput], outputs: [-1]})[0];
-      expanedInput = expanedInput.reshape([batchSize, sequenceLength, numHeads * nReps, headSize]);
+      if (nReps !== 1) {
+        let expanedInput = context.compute(
+            createExpandProgramInfo([reshapedInput], [batchSize, sequenceLength, numHeads, nReps, headSize]),
+            {inputs: [reshapedInput], outputs: [-1]})[0];
+
+        reshapedInput = expanedInput.reshape([batchSize, sequenceLength, numHeads * nReps, headSize]);
+      }
+
       return context.compute(
-          createTransposeProgramInfo(expanedInput, weightTransposeAttribute.perm),
-          {inputs: [expanedInput], outputs: [-1]})[0];
+          createTransposeProgramInfo(reshapedInput, weightTransposeAttribute.perm),
+          {inputs: [reshapedInput], outputs: [-1]})[0];
     };
 
 export const groupQueryAttention = (context: ComputeContext, attributes: AttentionAttrs): void => {
