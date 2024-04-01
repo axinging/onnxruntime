@@ -82,7 +82,7 @@ export const validateInputs = (inputs: readonly TensorView[], attributes: Attent
 
     let qkvFormat: AttentionQkvFormat;
     if (key) {
-      console.log("xxx query.dim = " + query.dims + ", key.dims = " + key.dims);
+      console.log("xxx query.dim = " + query.dims + ", key.dims = " + key.dims+ ", value.dims = " + value.dims);
       if (query.dims.length !== 3) {
         throw new Error('Input "query" is expected to have 3 dimensions when key is given');
       }
@@ -232,6 +232,7 @@ export const applyAttention =
     (context: ComputeContext, q: TensorView, k: TensorView, v: TensorView, _maskIndex: TensorView|undefined,
      _past: TensorView|undefined, _pastKey: TensorView|undefined, _pastValue: TensorView|undefined,
      relativePositionBias: TensorView|undefined, parameters: AttentionParameters) => {
+      console.log("xxx q.dims = "+ q.dims + ", k.dims=  " + k.dims + ", v.dims =" + v.dims);
       const probs = computeAttentionProbs(context, q, k, relativePositionBias, parameters, 1.0);
 
       computeVxAttentionScore(context, probs, v, parameters);
