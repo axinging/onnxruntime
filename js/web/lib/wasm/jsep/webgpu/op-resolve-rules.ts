@@ -17,7 +17,7 @@ import {fastGelu} from './ops/fast-gelu';
 import {gather, parseGatherAttributes} from './ops/gather';
 import {gatherElements, parseGatherElementsAttributes} from './ops/gather-elements';
 import {gemm, parseGemmAttributes} from './ops/gemm';
-import {groupQueryAttention, parseGroupQueryAttentionAttributes} from './ops/group-query-attentiion';
+import {groupQueryAttention, parseGroupQueryAttentionAttributes} from './ops/group-query-attention';
 import {instanceNorm} from './ops/instance-norm';
 import {layerNorm} from './ops/layer-norm';
 import {matMul} from './ops/matmul';
