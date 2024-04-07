@@ -93,6 +93,7 @@ export const validateInputs = (inputs: readonly TensorView[], attributes: Attent
     if (query.dims[0] !== key.dims[0]) {
       throw new Error('Input "query" and "key" shall have same dim 0 (batch size)');
     }
+    // When query.dims[1] === key.dims[1], seq len equals, it's self attn; Otherwise cross attn.
 
     if (key.dims.length === 3) {
       if (key.dims[2] !== query.dims[2]) {
@@ -327,7 +328,7 @@ export const multiHeadAttention = (context: ComputeContext, attributes: Attentio
         context, Q, context.inputs[1], context.inputs[2], context.inputs[4], undefined, undefined, undefined,
         context.inputs[5], params, attributes);
   }
-
+  // [1, 1, 8]; b =1, nH = 2; kvS = 1, h= 4
   const K = maybeTransposeToBNSHAndAddBias(
       context, params.batchSize, params.numHeads, params.kvSequenceLength, params.headSize, context.inputs[1],
       context.inputs[3], params.hiddenSize);

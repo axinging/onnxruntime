@@ -424,20 +424,21 @@ export const computeAttentionProbs =
     };
 
 export const computeVxAttentionScore =
-    (context: ComputeContext, probs: TensorView, v: TensorView, params: AttentionParameters) => {
-      const outputShape = [params.batchSize, params.sequenceLength, params.vHiddenSize];
+    (context: ComputeContext, probs: TensorView, v: TensorView, params: AttentionParameters, nReps: number = 1) => {
+      const outputShape = [params.batchSize, params.sequenceLength, params.vHiddenSize * nReps];
       const TILE_SIZE = 12;
       const dispatch = {
         x: Math.ceil(params.vHeadSize / TILE_SIZE),
         y: Math.ceil(params.sequenceLength / TILE_SIZE),
         z: params.batchSize * params.numHeads
       };
+
       const programUniforms: ProgramUniform[] = [
         {type: DataType.uint32, data: params.sequenceLength}, {type: DataType.uint32, data: params.totalSequenceLength},
         {type: DataType.uint32, data: params.vHeadSize}, {type: DataType.uint32, data: params.numHeads},
-        {type: DataType.uint32, data: params.vHiddenSize}
+        {type: DataType.uint32, data: params.vHiddenSize* nReps}
       ];
-
+      console.log("xxx outputShape score= " + outputShape + ", programUniforms=" + JSON.stringify(programUniforms));
       const getShaderSource = (shaderHelper: ShaderHelper) => {
         const probsHelper = inputVariable('probs', probs.dataType, probs.dims);
         const vHelper = inputVariable('v', v.dataType, v.dims);

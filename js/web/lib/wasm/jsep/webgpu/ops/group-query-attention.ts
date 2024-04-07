@@ -203,6 +203,7 @@ export const validateInputs = (inputs: readonly TensorView[], attributes: Attent
   if (pastValue) {
     throw new Error('pastValue is not supported');
   }
+  // vHiddenSize = vHiddenSize * attributes.kvNumHeads!!;
 
   return {
     batchSize,
@@ -231,11 +232,14 @@ export const validateInputs = (inputs: readonly TensorView[], attributes: Attent
 export const applyAttention =
     (context: ComputeContext, q: TensorView, k: TensorView, v: TensorView, _maskIndex: TensorView|undefined,
      _past: TensorView|undefined, _pastKey: TensorView|undefined, _pastValue: TensorView|undefined,
-     relativePositionBias: TensorView|undefined, parameters: AttentionParameters) => {
+     relativePositionBias: TensorView|undefined, parameters: AttentionParameters, nReps: number|undefined) => {
       console.log('xxx q.dims = ' + q.dims + ', k.dims=  ' + k.dims + ', v.dims =' + v.dims);
+      console.log('xxx  parameters =' + JSON.stringify(parameters));
       const probs = computeAttentionProbs(context, q, k, relativePositionBias, parameters, 1.0);
+      console.log('xxx probs.dims = ' + probs.dims);
 
-      computeVxAttentionScore(context, probs, v, parameters);
+
+      computeVxAttentionScore(context, probs, v, parameters, nReps);
     };
 
 export const parseGroupQueryAttentionAttributes = (attributes: AttentionAttrs): AttentionAttrs =>
@@ -257,6 +261,7 @@ const maybeExpandAndTransposeToBNSH =
 
         reshapedInput = expanedInput.reshape([batchSize, sequenceLength, numHeads * nReps, headSize]);
       }
+      console.log("xxx reshapedInput = " + reshapedInput.dims);
 
       return context.compute(
           createTransposeProgramInfo(reshapedInput, weightTransposeAttribute.perm),
@@ -267,6 +272,7 @@ export const groupQueryAttention = (context: ComputeContext, attributes: Attenti
   const params = validateInputs(context.inputs, attributes);
   params.kvNumHeads = attributes.kvNumHeads;
   params.vHeadSize = Math.floor(params.vHiddenSize / params.kvNumHeads!!);
+  console.log("xxx params = " + params.vHeadSize);
 
   if (context.inputs[0].dims.length === 5) {
     throw new Error('Packed QKV is not implemented');
@@ -290,14 +296,14 @@ export const groupQueryAttention = (context: ComputeContext, attributes: Attenti
         context.inputs[5], params);
   }
 
-  const nRep = Math.floor(attributes.numHeads / params.kvNumHeads!!);
+  const nReps = Math.floor(attributes.numHeads / params.kvNumHeads!!);
   const K = maybeExpandAndTransposeToBNSH(
       context, params.batchSize, params.kvNumHeads!!, params.kvSequenceLength, params.vHeadSize, context.inputs[1],
-      nRep);
+      nReps);
 
   const V = maybeExpandAndTransposeToBNSH(
       context, params.batchSize, params.kvNumHeads!!, params.kvSequenceLength, params.vHeadSize, context.inputs[2],
-      nRep);
+      nReps);
   applyAttention(
       context,
       Q,
@@ -309,5 +315,6 @@ export const groupQueryAttention = (context: ComputeContext, attributes: Attenti
       context.inputs[7],
       context.inputs[5],
       params,
+      nReps
   );
 };
