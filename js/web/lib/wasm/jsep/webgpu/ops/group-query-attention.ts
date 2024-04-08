@@ -7,6 +7,7 @@ import {ComputeContext} from '../types';
 import {AttentionAttrs, AttentionMaskType, AttentionParameters, AttentionQkvFormat, computeAttentionProbs, computeVxAttentionScore} from './attention';
 import {createExpandProgramInfo} from './expand';
 import {maybeTransposeToBNSHAndAddBias} from './multi-head-attentiion';
+import { createTileProgramInfo } from './tile';
 import {createTransposeProgramInfo, TransposeAttributes} from './transpose';
 
 export const validateInputs = (inputs: readonly TensorView[], attributes: AttentionAttrs): AttentionParameters => {
@@ -247,7 +248,7 @@ export const parseGroupQueryAttentionAttributes = (attributes: AttentionAttrs): 
 
 const weightTransposeAttribute: TransposeAttributes = createAttributeWithCacheKey({perm: [0, 2, 1, 3]});
 
-const maybeExpandAndTransposeToBNSH =
+export const maybeExpandAndTransposeToBNSH2 =
     (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
      input: TensorView, nReps: number) => {
       let reshapedInput = input;
@@ -267,6 +268,28 @@ const maybeExpandAndTransposeToBNSH =
           createTransposeProgramInfo(reshapedInput, weightTransposeAttribute.perm),
           {inputs: [reshapedInput], outputs: [-1]})[0];
     };
+
+  const maybeExpandAndTransposeToBNSH =
+    (context: ComputeContext, batchSize: number, numHeads: number, sequenceLength: number, headSize: number,
+     input: TensorView, nReps: number) => {
+      let reshapedInput = input;
+      if (input.dims.length === 3) {
+        reshapedInput = input.reshape([batchSize, sequenceLength, numHeads, headSize]);
+      }
+      if (nReps !== 1) {
+        let expanedInput = context.compute(
+          createTileProgramInfo([reshapedInput], [1, 1, 1, nReps]),
+            {inputs: [reshapedInput], outputs: [-1]})[0];
+
+        reshapedInput = expanedInput.reshape([batchSize, sequenceLength, numHeads * nReps, headSize]);
+      }
+      console.log("xxx reshapedInput = " + reshapedInput.dims);
+
+      return context.compute(
+          createTransposeProgramInfo(reshapedInput, weightTransposeAttribute.perm),
+          {inputs: [reshapedInput], outputs: [-1]})[0];
+    };
+// createTileProgramInfo
 
 export const groupQueryAttention = (context: ComputeContext, attributes: AttentionAttrs): void => {
   const params = validateInputs(context.inputs, attributes);
@@ -293,7 +316,7 @@ export const groupQueryAttention = (context: ComputeContext, attributes: Attenti
   if (kvBNSH) {
     return applyAttention(
         context, Q, context.inputs[1], context.inputs[2], context.inputs[4], undefined, undefined, undefined,
-        context.inputs[5], params);
+        context.inputs[5], params, 0);
   }
 
   const nReps = Math.floor(attributes.numHeads / params.kvNumHeads!!);
