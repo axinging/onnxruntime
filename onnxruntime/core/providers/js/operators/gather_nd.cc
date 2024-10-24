@@ -1,0 +1,53 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+#include "core/providers/js/js_kernel.h"
+#include "core/providers/js/js_data_types.h"
+#include "gather_nd.h"
+
+namespace onnxruntime {
+namespace js {
+
+ONNX_OPERATOR_KERNEL_EX(
+    GatherND,
+    kOnnxDomain,
+    13,
+    kJsExecutionProvider,
+    (*KernelDefBuilder::Create())
+        .TypeConstraint("T", BuildKernelDefConstraintsFromTypeList<TypeList<float,
+                                                                            MLFloat16,
+                                                                            int32_t,
+                                                                            uint32_t,
+                                                                            bool>>())
+        .TypeConstraint("indices", BuildKernelDefConstraintsFromTypeList<TypeList<int64_t>>()),
+    GatherND);
+
+ONNX_OPERATOR_KERNEL_EX(
+    GatherND,
+    kOnnxDomain,
+    12,
+    kJsExecutionProvider,
+    (*KernelDefBuilder::Create())
+        .TypeConstraint("T", BuildKernelDefConstraintsFromTypeList<TypeList<float,
+                                                                            int32_t,
+                                                                            uint32_t,
+                                                                            bool>>())
+        .TypeConstraint("indices", BuildKernelDefConstraintsFromTypeList<TypeList<int64_t>>()),
+    GatherND);
+
+ONNX_OPERATOR_KERNEL_EX(
+    GatherND,
+    kOnnxDomain,
+    11,
+    kJsExecutionProvider,
+    (*KernelDefBuilder::Create())
+        .TypeConstraint("T", BuildKernelDefConstraintsFromTypeList<TypeList<float,
+                                                                            int32_t,
+                                                                            uint32_t,
+                                                                            bool>>())
+        .TypeConstraint("indices", BuildKernelDefConstraintsFromTypeList<TypeList<int64_t>>()),
+    GatherND);
+
+
+}  // namespace js
+}  // namespace onnxruntime
